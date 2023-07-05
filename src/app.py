@@ -11,7 +11,7 @@ from api.models import db, User
 from api.routes import api
 from api.admin import setup_admin
 from api.commands import setup_commands
-from flask_jwt_extended import create_access_token, JWTManager
+from flask_jwt_extended import create_access_token, JWTManager, jwt_required, get_jwt_identity
 
 
 #from models import Person
@@ -78,16 +78,30 @@ def hello():
 def register_user():
     user_email = request.json.get("email", None)
     user_password = request.json.get("password", None)
-
     user_exists = User.query.filter_by(email = user_email).first()
-
     if user_exists:
         return jsonify({"msg": "Sorry, this user already exists!"}), 300
-
     new_user = User(email = user_email, password = user_password)
     db.session.add(new_user)
     db.session.commit()
     return jsonify({"msg": "New user has been created!"}), 200
+
+
+@app.route('/users', methods=['GET'])
+def get_users():
+    all_users = User.query.all()
+    all_users = list(map(lambda index: index.serialize(), all_users))
+    response_body = jsonify(all_users)
+    return response_body, 200
+
+@app.route('/users/<id>', methods=['DELETE'])
+def delete_user(id):
+    delete_user = User.query.get(id)
+    if delete_user is None:
+        return jsonify({"Error": "User not found"})
+    db.session.delete(delete_user)
+    db.session.commit()
+    return jsonify({"msg": "User successfully deleted"}), 200
 
 
 @app.route('/login', methods=['POST'])
@@ -103,6 +117,12 @@ def user_login():
     return jsonify({"response": "Successfully logged in", "token": token, "email": user.email}), 200
 
 
+@app.route('/private', methods=['GET'])
+@jwt_required()
+def show_email():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    return jsonify({"response": "User logged in", "email": user.email}), 200
 
 
 
